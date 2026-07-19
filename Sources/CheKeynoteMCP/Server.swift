@@ -45,7 +45,7 @@ actor KeynoteMCPServer {
 
     /// v1 tool definitions, aggregated per category as the tool-surface
     /// tasks land. Final count pinned at 25 by ToolSurfaceTests.
-    var tools: [Tool] { Self.lifecycleTools }
+    var tools: [Tool] { Self.lifecycleTools + Self.slideTools }
 
     private func registerToolHandlers() async {
         await server.withMethodHandler(ListTools.self) { [tools] _ in
@@ -61,6 +61,7 @@ actor KeynoteMCPServer {
 
     private func dispatch(params: CallTool.Parameters) async -> CallTool.Result {
         if let result = await handleLifecycle(params) { return result }
+        if let result = await handleSlides(params) { return result }
         return CallTool.Result(
             content: [.text("Error: unknown tool '\(params.name)'")],
             isError: true

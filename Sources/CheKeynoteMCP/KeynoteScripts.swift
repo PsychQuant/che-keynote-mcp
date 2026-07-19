@@ -81,3 +81,104 @@ enum KeynoteScripts {
         """
     }
 }
+
+// MARK: - Slide CRUD (appended by task 3.2)
+
+extension KeynoteScripts {
+
+    static func addSlide(documentName: String, layout: String?) -> String {
+        let make = layout.map {
+            "set s to make new slide with properties {base layout: slide layout \(KeynoteController.quoted($0))}"
+        } ?? "set s to make new slide"
+        return """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                \(make)
+                return slide number of s
+            end tell
+        end tell
+        """
+    }
+
+    static func deleteSlide(documentName: String, slideIndex: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                delete slide \(slideIndex)
+                return "deleted"
+            end tell
+        end tell
+        """
+    }
+
+    static func duplicateSlide(documentName: String, slideIndex: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                set s to duplicate slide \(slideIndex)
+                return slide number of s
+            end tell
+        end tell
+        """
+    }
+
+    static func moveSlide(documentName: String, from: Int, toBefore: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                move slide \(from) to before slide \(toBefore)
+                return "moved"
+            end tell
+        end tell
+        """
+    }
+
+    static func setSlideSkipped(documentName: String, slideIndex: Int, skipped: Bool) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                set skipped of slide \(slideIndex) to \(skipped)
+                return "ok"
+            end tell
+        end tell
+        """
+    }
+
+    static func slideCount(documentName: String) -> String {
+        """
+        tell application "Keynote"
+            return count of slides of document \(KeynoteController.quoted(documentName))
+        end tell
+        """
+    }
+
+    static func slideInfo(documentName: String, slideIndex: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    return {slide number, name of base layout, skipped, object text of default title item, count of text items, count of images}
+                end tell
+            end tell
+        end tell
+        """
+    }
+
+    /// Batched slide listing (design D4 — one script per batch of `batchSize`
+    /// slides, never one AppleEvent per slide). Each script returns parallel
+    /// lists {slide numbers, skipped flags, title texts} for its range.
+    static func listSlidesBatches(documentName: String, slideCount: Int, batchSize: Int = 20) -> [String] {
+        guard slideCount > 0 else { return [] }
+        let indices = Array(1...slideCount)
+        return KeynoteController.batches(indices, size: batchSize).map { batch in
+            let lo = batch.first!, hi = batch.last!
+            return """
+            tell application "Keynote"
+                tell document \(KeynoteController.quoted(documentName))
+                    return {slide number of slides \(lo) thru \(hi), skipped of slides \(lo) thru \(hi), object text of default title item of slides \(lo) thru \(hi)}
+                end tell
+            end tell
+            """
+        }
+    }
+}
