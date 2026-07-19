@@ -6,6 +6,7 @@ import MCP
 actor KeynoteMCPServer {
     private let server: Server
     private let transport: StdioTransport
+    let controller = KeynoteController()
 
     static let serverInstructions = """
     # che-keynote-mcp — Apple Keynote MCP Server
@@ -40,11 +41,11 @@ actor KeynoteMCPServer {
         await server.waitUntilCompleted()
     }
 
-    // MARK: - Tool registry (populated by the v1 tool-surface tasks)
+    // MARK: - Tool registry (spec: 25 tools across six categories)
 
-    /// v1 tool definitions. Empty at scaffold stage; six categories land in
-    /// the tool-surface tasks (spec: 25 tools).
-    var tools: [Tool] { [] }
+    /// v1 tool definitions, aggregated per category as the tool-surface
+    /// tasks land. Final count pinned at 25 by ToolSurfaceTests.
+    var tools: [Tool] { Self.lifecycleTools }
 
     private func registerToolHandlers() async {
         await server.withMethodHandler(ListTools.self) { [tools] _ in
@@ -59,8 +60,9 @@ actor KeynoteMCPServer {
     }
 
     private func dispatch(params: CallTool.Parameters) async -> CallTool.Result {
-        CallTool.Result(
-            content: [.text("Error: unknown tool '\(params.name)' — scaffold stage exposes no tools yet")],
+        if let result = await handleLifecycle(params) { return result }
+        return CallTool.Result(
+            content: [.text("Error: unknown tool '\(params.name)'")],
             isError: true
         )
     }

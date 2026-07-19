@@ -7,10 +7,10 @@ import XCTest
 
 final class ScaffoldTests: XCTestCase {
 
-    func testServerInitializesWithEmptyToolRegistry() async {
+    func testToolNamesAreUnique() async {
         let server = await KeynoteMCPServer()
-        let tools = await server.tools
-        XCTAssertEqual(tools.count, 0, "scaffold stage exposes no tools yet")
+        let names = await server.tools.map(\.name)
+        XCTAssertEqual(names.count, Set(names).count, "duplicate tool names in registry")
     }
 
     func testUnknownToolReturnsStructuredError() async {
