@@ -1,0 +1,15 @@
+.DS_Store
+.build/
+.swiftpm/
+xcuserdata/
+
+# Reference repos are clone-on-demand — only references/README.md is tracked
+references/*
+!references/README.md
+
+# IDD session-local state (attachments cache / tree-lock / unattended flag)
+.claude/.idd/
+
+# Build artifacts (distributed via GitHub Release)
+mcpb/server/*
+!mcpb/server/.gitkeep
