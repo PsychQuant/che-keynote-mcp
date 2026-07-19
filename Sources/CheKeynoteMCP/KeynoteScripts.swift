@@ -249,3 +249,102 @@ extension KeynoteScripts {
         """
     }
 }
+
+// MARK: - Notes / Playback / Export (appended by tasks 3.4 + 3.5)
+
+extension KeynoteScripts {
+
+    static func setPresenterNotes(documentName: String, slideIndex: Int, notes: String) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                set presenter notes of slide \(slideIndex) to \(KeynoteController.quoted(notes))
+                return "ok"
+            end tell
+        end tell
+        """
+    }
+
+    static func getPresenterNotes(documentName: String, slideIndex: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                return presenter notes of slide \(slideIndex)
+            end tell
+        end tell
+        """
+    }
+
+    static func startSlideshow(documentName: String) -> String {
+        """
+        tell application "Keynote"
+            start document \(KeynoteController.quoted(documentName)) from first slide of document \(KeynoteController.quoted(documentName))
+            return "started"
+        end tell
+        """
+    }
+
+    static func stopSlideshow() -> String {
+        """
+        tell application "Keynote"
+            stop the front document
+            return "stopped"
+        end tell
+        """
+    }
+
+    static func exportPDF(documentName: String, outputPath: String) -> String {
+        """
+        tell application "Keynote"
+            export document \(KeynoteController.quoted(documentName)) to POSIX file \(KeynoteController.quoted(outputPath)) as PDF
+            return "exported"
+        end tell
+        """
+    }
+
+    static func exportImages(documentName: String, outputPath: String, format: String = "PNG") -> String {
+        """
+        tell application "Keynote"
+            export document \(KeynoteController.quoted(documentName)) to POSIX file \(KeynoteController.quoted(outputPath)) as slide images with properties {image format: \(format)}
+            return "exported"
+        end tell
+        """
+    }
+
+    static func readSkippedStates(documentName: String) -> String {
+        """
+        tell application "Keynote"
+            return skipped of every slide of document \(KeynoteController.quoted(documentName))
+        end tell
+        """
+    }
+
+    /// Single-slide export step 1: skip every slide except keepIndex.
+    static func skipAllExcept(documentName: String, keepIndex: Int, slideCount: Int) -> String {
+        let lines = (1...slideCount).map { i in
+            "        set skipped of slide \(i) to \(i == keepIndex ? "false" : "true")"
+        }.joined(separator: "\n")
+        return """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+        \(lines)
+            end tell
+        end tell
+        """
+    }
+
+    /// Single-slide export step 3: restore the states saved before step 1
+    /// (never blanket-unskip — pre-existing skipped slides stay skipped).
+    static func restoreSkippedStates(documentName: String, states: [Bool]) -> String {
+        let lines = states.enumerated().map { (i, skipped) in
+            "        set skipped of slide \(i + 1) to \(skipped)"
+        }.joined(separator: "\n")
+        return """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+        \(lines)
+            end tell
+        end tell
+        """
+    }
+}
