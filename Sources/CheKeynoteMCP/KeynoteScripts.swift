@@ -182,3 +182,70 @@ extension KeynoteScripts {
         }
     }
 }
+
+// MARK: - Content (appended by task 3.3)
+
+extension KeynoteScripts {
+
+    static func setSlideBody(documentName: String, slideIndex: Int, body: String) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    set object text of default body item to \(KeynoteController.quoted(body))
+                end tell
+            end tell
+        end tell
+        """
+    }
+
+    static func addTextItem(documentName: String, slideIndex: Int, text: String) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    make new text item with properties {object text: \(KeynoteController.quoted(text))}
+                    return count of text items
+                end tell
+            end tell
+        end tell
+        """
+    }
+
+    static func setTextItem(documentName: String, slideIndex: Int, itemIndex: Int, text: String) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    set object text of text item \(itemIndex) to \(KeynoteController.quoted(text))
+                end tell
+            end tell
+        end tell
+        """
+    }
+
+    static func listTextItems(documentName: String, slideIndex: Int) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    return object text of every text item
+                end tell
+            end tell
+        end tell
+        """
+    }
+
+    static func addImage(documentName: String, slideIndex: Int, path: String) -> String {
+        """
+        tell application "Keynote"
+            tell document \(KeynoteController.quoted(documentName))
+                tell slide \(slideIndex)
+                    make new image with properties {file: POSIX file \(KeynoteController.quoted(path))}
+                    return count of images
+                end tell
+            end tell
+        end tell
+        """
+    }
+}
