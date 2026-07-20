@@ -47,12 +47,18 @@ What the platform *does* let us verify without the dialog:
   carries `com.apple.security.automation.apple-events` + an embedded
   `NSAppleEventsUsageDescription` (release.sh step 3 enforces this).
 
-## Running the full end-to-end verification (maintainer, at the machine)
+## The one-time grant must come first (`--setup`)
 
-`scripts/integration-driver.swift` replays all three spec scenarios
-(`KeynoteIntegrationTests`) by driving the **signed** binary over MCP stdio,
-which is the true production TCC surface. Run it in an interactive login
-session where you can click the dialog:
+The automation consent dialog can only present when the requesting process is a
+**foreground app**. The integration driver spawns the binary in the background
+(as an MCP-stdio child), so it has no foreground context — a first-time
+(`notDetermined`) request there cannot show the dialog and just denies, and
+`swift test` cannot show it either. The grant is therefore established once,
+separately, through the binary's own `--setup` flow (mirroring che-ical-mcp
+`--setup` / che-apple-mail-mcp's Full Disk Access onboarding), which runs the
+request inside an `NSApplication`. Because the grant is keyed to the Developer
+ID **code identity**, not the launch path, one grant covers the MCP server, the
+`--setup` binary, and the integration driver alike.
 
 ```bash
 cd mcp/che-keynote-mcp
@@ -60,14 +66,33 @@ swift build -c release
 codesign --force --options runtime --timestamp \
   --entitlements Sources/CheKeynoteMCP/Entitlements.plist \
   --sign "$DEVELOPER_ID" .build/release/CheKeynoteMCP        # DEVELOPER_ID = che-mcps Developer ID
+
+.build/release/CheKeynoteMCP --check-tcc      # dialog-free status read
+.build/release/CheKeynoteMCP --setup          # foreground; click Allow once
+```
+
+`--setup` foregrounds, presents **"CheKeynoteMCP" wants to control "Keynote"**
+(when status is `notDetermined`), then confirms a live `get version` round-trip.
+If `--check-tcc` shows `denied` instead of `not yet asked`, a persistent TCC
+record is blocking the dialog — clear it first (System Settings → Privacy &
+Security → Automation → CheKeynoteMCP → tick Keynote, or `tccutil reset
+AppleEvents`), because `tccutil reset AppleEvents <bundle-id>` cannot target a
+non-app-bundle CLI (`-10814`).
+
+## Running the full end-to-end verification (maintainer, at the machine)
+
+With the grant in place, `scripts/integration-driver.swift` replays all three
+spec scenarios (`KeynoteIntegrationTests`) by driving the **signed** binary over
+MCP stdio — the true production TCC surface:
+
+```bash
 swift scripts/integration-driver.swift .build/release/CheKeynoteMCP
 ```
 
-On the first `create_presentation` a dialog reads **"CheKeynoteMCP" wants to
-control "Keynote"** — click **Allow**. Keynote then opens, the driver builds a
-3-slide deck (with the adversarial title `He said "quit" \ 換行 🎉`), reads it
-back, exports a 3-page PDF, runs the single-slide skipped-state restore, and the
-pipelined concurrency check. Expected tail:
+Keynote opens, the driver builds a 3-slide deck (with the adversarial title
+`He said "quit" \ 換行 🎉`), reads it back, exports a 3-page PDF, runs the
+single-slide skipped-state restore, and the pipelined concurrency check.
+Expected tail:
 
 ```
 ALL 3 SCENARIOS PASSED against real Keynote

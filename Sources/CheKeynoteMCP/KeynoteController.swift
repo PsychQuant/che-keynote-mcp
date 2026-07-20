@@ -35,12 +35,21 @@ actor KeynoteController {
     /// ships as bundle id `com.apple.Keynote`; the pre-15.3 iWork id is kept
     /// as a fallback. CFBundleName stays "Keynote", so script targeting by
     /// name (`tell application "Keynote"`) is unaffected by the rebrand.
-    private static let keynoteBundleIDs = ["com.apple.Keynote", "com.apple.iWork.Keynote"]
+    /// Internal (not private) so the `--setup` / `--check-tcc` flow
+    /// (`SetupRunner`, `AutomationPermission`) can target the same ids.
+    static let keynoteBundleIDs = ["com.apple.Keynote", "com.apple.iWork.Keynote"]
 
     // MARK: - Availability
 
     nonisolated func isKeynoteInstalled() -> Bool {
-        Self.keynoteBundleIDs.contains {
+        Self.installedKeynoteBundleID() != nil
+    }
+
+    /// The bundle id of the installed Keynote (first match, current id
+    /// preferred), or nil if Keynote is not installed. The automation-consent
+    /// flow targets the *installed* id so the TCC dialog names the right app.
+    nonisolated static func installedKeynoteBundleID() -> String? {
+        keynoteBundleIDs.first {
             NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
         }
     }
