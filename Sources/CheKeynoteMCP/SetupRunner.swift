@@ -19,6 +19,36 @@ import AppKit
 /// runs `CheKeynoteMCP --setup` once from a Terminal, grants, and — because the
 /// grant is keyed to the Developer ID code identity, not the launch path — every
 /// later spawn (MCP client, tests) inherits it.
+/// The `--setup` action for a given permission state + interactivity. Pure so
+/// the one branch that MUST NOT run (prompting from a non-interactive session)
+/// is unit-testable without a real dialog — mirrors che-ical-mcp's
+/// `setupAccessDecision`. Prompting (`askUserIfNeeded: true`) from a context
+/// that cannot present the dialog does not just fail: macOS records a
+/// **persistent deny**, so the guard here is a correctness requirement, not a
+/// nicety.
+enum SetupAction: Equatable {
+    case alreadyGranted
+    /// A persistent deny record exists — prompting will not re-present; the
+    /// user must clear it in System Settings / `tccutil reset` first.
+    case denied
+    /// Interactive + never-asked → present the consent dialog.
+    case prompt
+    /// Never-asked but no controlling terminal → MUST NOT prompt (it would
+    /// auto-deny and persist the record); print guidance and stop.
+    case skipNonInteractive
+}
+
+func setupAction(status: AutomationPermission, isInteractive: Bool) -> SetupAction {
+    switch status {
+    case .granted:
+        return .alreadyGranted
+    case .denied:
+        return .denied
+    case .notDetermined, .targetNotFound, .unknown:
+        return isInteractive ? .prompt : .skipNonInteractive
+    }
+}
+
 enum SetupRunner {
 
     /// True when the process has a controlling terminal on stdin — a proxy for
@@ -66,29 +96,32 @@ enum SetupRunner {
         }
         print("  target:    \(bundleID)\n")
 
-        if !isInteractive {
-            print("⚠ Non-interactive session: the consent dialog cannot present here.")
-            print("  Run `CheKeynoteMCP --setup` from a real Terminal window and click Allow.\n")
-        }
-
-        #if canImport(AppKit)
-        // Foreground the process so the system consent dialog can appear
-        // frontmost (the crux — see the type doc above).
-        let app = NSApplication.shared
-        app.setActivationPolicy(.regular)
-        app.activate(ignoringOtherApps: true)
-        #endif
-
-        switch AutomationPermission.probe(bundleID: bundleID, askUserIfNeeded: false) {
-        case .granted:
+        // Dialog-free read FIRST — never poisons TCC state.
+        let current = AutomationPermission.probe(bundleID: bundleID, askUserIfNeeded: false)
+        switch setupAction(status: current, isInteractive: isInteractive) {
+        case .alreadyGranted:
             print("✓ Automation → Keynote already granted.")
         case .denied:
             print("✗ Automation → Keynote is explicitly DENIED (a persistent TCC record blocks the dialog).")
-            print("  Fix, then re-run --setup:")
+            print("  Clear it, then re-run --setup from a Terminal:")
             print("    • System Settings → Privacy & Security → Automation → CheKeynoteMCP → tick Keynote")
             print("    • or reset all Apple-events grants:  tccutil reset AppleEvents")
             return 1
-        case .notDetermined, .targetNotFound, .unknown:
+        case .skipNonInteractive:
+            // Do NOT probe with askUserIfNeeded here: from a non-foreground
+            // session that would auto-deny and persist the record.
+            print("⚠ Non-interactive session: the consent dialog cannot present here, and")
+            print("  requesting anyway would record a persistent denial. Not requesting.")
+            print("  Run `.build/release/CheKeynoteMCP --setup` from a real Terminal and click Allow.")
+            return 1
+        case .prompt:
+            #if canImport(AppKit)
+            // Foreground the process so the system consent dialog can appear
+            // frontmost (the crux — see the type doc above).
+            let app = NSApplication.shared
+            app.setActivationPolicy(.regular)
+            app.activate(ignoringOtherApps: true)
+            #endif
             print("Requesting Automation permission — click Allow on the \"CheKeynoteMCP wants to control Keynote\" dialog…")
             let afterPrompt = AutomationPermission.probe(bundleID: bundleID, askUserIfNeeded: true)
             guard afterPrompt.isGranted else {

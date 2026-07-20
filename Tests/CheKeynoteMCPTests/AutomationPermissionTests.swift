@@ -50,4 +50,29 @@ final class AutomationPermissionTests: XCTestCase {
         XCTAssertTrue(lines.allSatisfy { !$0.isEmpty })
         XCTAssertEqual(Set(lines).count, lines.count, "each status must render a distinct line")
     }
+
+    // MARK: - setupAction decision (the poison-state guard)
+
+    func testGrantedNeverPrompts() {
+        XCTAssertEqual(setupAction(status: .granted, isInteractive: true), .alreadyGranted)
+        XCTAssertEqual(setupAction(status: .granted, isInteractive: false), .alreadyGranted)
+    }
+
+    func testDeniedNeverPrompts() {
+        XCTAssertEqual(setupAction(status: .denied, isInteractive: true), .denied)
+        XCTAssertEqual(setupAction(status: .denied, isInteractive: false), .denied)
+    }
+
+    func testInteractiveNotDeterminedPrompts() {
+        XCTAssertEqual(setupAction(status: .notDetermined, isInteractive: true), .prompt)
+    }
+
+    /// The critical guard: a never-asked status in a non-interactive session
+    /// must NOT prompt — prompting there auto-denies and persists the record
+    /// (the exact regression that poisoned TCC state during development).
+    func testNonInteractiveNotDeterminedNeverPrompts() {
+        XCTAssertEqual(setupAction(status: .notDetermined, isInteractive: false), .skipNonInteractive)
+        XCTAssertEqual(setupAction(status: .targetNotFound, isInteractive: false), .skipNonInteractive)
+        XCTAssertEqual(setupAction(status: .unknown(-1), isInteractive: false), .skipNonInteractive)
+    }
 }
