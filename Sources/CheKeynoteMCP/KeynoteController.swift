@@ -31,12 +31,18 @@ enum KeynoteError: Error, LocalizedError, Equatable {
 /// quoting helper; the injection corpus in ScriptGenerationTests pins it).
 actor KeynoteController {
 
-    private let keynoteBundleID = "com.apple.iWork.Keynote"
+    /// Keynote 15.3+ ("Apple 創作坊" / Creator Studio era, macOS 26 baseline)
+    /// ships as bundle id `com.apple.Keynote`; the pre-15.3 iWork id is kept
+    /// as a fallback. CFBundleName stays "Keynote", so script targeting by
+    /// name (`tell application "Keynote"`) is unaffected by the rebrand.
+    private static let keynoteBundleIDs = ["com.apple.Keynote", "com.apple.iWork.Keynote"]
 
     // MARK: - Availability
 
     nonisolated func isKeynoteInstalled() -> Bool {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: keynoteBundleID) != nil
+        Self.keynoteBundleIDs.contains {
+            NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil
+        }
     }
 
     // MARK: - Script execution (in-process, D1)
